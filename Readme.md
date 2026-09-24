@@ -17,6 +17,19 @@ Control your Deluge clients remotely with Deluge Remote -- the easy way to monit
 - Dark Mode Support
 - iPad Support
 
+## macOS
+A native Mac app lives in `macOS/`. It uses the same Deluge WebUI JSON API as the iOS app: multiple servers, a sortable torrent table, pause/resume/remove, magnets, torrent files, and URLs, file priorities, and per-torrent limits.
+
+Deluge WebUI has to be running. The usual address is `http://<host>:8112` with an empty web path.
+
+```bash
+cd macOS
+./scripts/build-app.sh
+open "build/Deluge Remote.app"
+```
+
+You can also open `macOS/Package.swift` in Xcode and run the DelugeRemote scheme.
+
 ## Installation
 There are two main methods for installing this app to your iOS device.
 1. Install via Xcode
