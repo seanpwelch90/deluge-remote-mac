@@ -79,3 +79,7 @@ fastlane/test_output
 
 iOSInjectionProject/
 .DS_Store
+
+# Local Deluge server list and passwords
+credentials.json
+servers.json
