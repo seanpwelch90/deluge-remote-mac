@@ -9,6 +9,8 @@ DerivedData/
 ## Various settings
 *.pbxuser
 *.pbxproj
+!Deluge Remote.xcodeproj/project.pbxproj
+!iOS/**/project.pbxproj
 *.lock
 !default.pbxuser
 *.mode1v3

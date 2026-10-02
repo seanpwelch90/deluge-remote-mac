@@ -1,4 +1,3 @@
-import AppKit
 import UniformTypeIdentifiers
 import DelugeRemoteCore
 

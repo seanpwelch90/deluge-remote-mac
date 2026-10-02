@@ -30,6 +30,16 @@ open "build/Deluge Remote.app"
 
 You can also open `macOS/Package.swift` in Xcode and run the DelugeRemote scheme.
 
+## iOS
+A modern iPhone and iPad app lives in `iOS/`. It uses the same Deluge client as the Mac app: servers, filters, queue order, magnets, torrent files, file priorities, and per-torrent limits. It requires iOS 17. The older UIKit app remains in `Deluge Remote.xcodeproj`.
+
+```bash
+cd iOS
+./scripts/build-app.sh
+```
+
+That produces a simulator build at `iOS/build/Deluge Remote.app`. Open `iOS/Deluge Remote.xcodeproj` in Xcode to run it on a simulator or a signed device.
+
 ## Installation
 There are two main methods for installing this app to your iOS device.
 1. Install via Xcode

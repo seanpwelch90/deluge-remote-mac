@@ -40,6 +40,7 @@ public final class DelugeClient: @unchecked Sendable {
     private let mutex = AsyncMutex()
     private var nextID = 0
     private var includeLabel = true
+    private var includeQueue = true
 
     public init(server: ServerConfig, password: String) {
         self.server = server
@@ -74,10 +75,19 @@ public final class DelugeClient: @unchecked Sendable {
 
     public func torrents() async throws -> [Torrent] {
         do {
-            return try await fetchTorrents(includeLabel: includeLabel)
-        } catch DelugeClientError.api(let message) where message.localizedCaseInsensitiveContains("label") {
-            includeLabel = false
-            return try await fetchTorrents(includeLabel: false)
+            return try await fetchTorrents(includeLabel: includeLabel, includeQueue: includeQueue)
+        } catch DelugeClientError.api(let message) {
+            var retry = false
+            if includeLabel && message.localizedCaseInsensitiveContains("label") {
+                includeLabel = false
+                retry = true
+            }
+            if includeQueue && message.localizedCaseInsensitiveContains("queue") {
+                includeQueue = false
+                retry = true
+            }
+            guard retry else { throw DelugeClientError.api(message) }
+            return try await fetchTorrents(includeLabel: includeLabel, includeQueue: includeQueue)
         }
     }
 
@@ -91,7 +101,7 @@ public final class DelugeClient: @unchecked Sendable {
     public func detail(hash: String) async throws -> TorrentDetail {
         let result = try await rpc("core.get_torrent_status", [
             .string(hash),
-            .array(Self.detailKeys(includeLabel: includeLabel).map(JSONValue.string))
+            .array(Self.detailKeys(includeLabel: includeLabel, includeQueue: includeQueue).map(JSONValue.string))
         ])
         guard let detail = TorrentDetail.parse(hash: hash, json: result) else {
             throw DelugeClientError.unreadableResponse
@@ -131,6 +141,22 @@ public final class DelugeClient: @unchecked Sendable {
 
     public func resumeAll() async throws {
         _ = try await rpc("core.resume_all_torrents")
+    }
+
+    public func queueTop(hashes: [String]) async throws {
+        try await queue("core.queue_top", hashes: hashes)
+    }
+
+    public func queueUp(hashes: [String]) async throws {
+        try await queue("core.queue_up", hashes: hashes)
+    }
+
+    public func queueDown(hashes: [String]) async throws {
+        try await queue("core.queue_down", hashes: hashes)
+    }
+
+    public func queueBottom(hashes: [String]) async throws {
+        try await queue("core.queue_bottom", hashes: hashes)
     }
 
     public func remove(hash: String, deleteData: Bool) async throws {
@@ -179,26 +205,32 @@ public final class DelugeClient: @unchecked Sendable {
         ])
     }
 
-    private func fetchTorrents(includeLabel: Bool) async throws -> [Torrent] {
+    private func queue(_ method: String, hashes: [String]) async throws {
+        guard !hashes.isEmpty else { return }
+        _ = try await rpc(method, [.array(hashes.map(JSONValue.string))])
+    }
+
+    private func fetchTorrents(includeLabel: Bool, includeQueue: Bool) async throws -> [Torrent] {
         let result = try await rpc("core.get_torrents_status", [
             .object([:]),
-            .array(Self.overviewKeys(includeLabel: includeLabel).map(JSONValue.string))
+            .array(Self.overviewKeys(includeLabel: includeLabel, includeQueue: includeQueue).map(JSONValue.string))
         ])
         return Torrent.list(from: result)
     }
 
-    private static func overviewKeys(includeLabel: Bool) -> [String] {
+    private static func overviewKeys(includeLabel: Bool, includeQueue: Bool) -> [String] {
         var keys = [
             "name", "hash", "upload_payload_rate", "download_payload_rate", "ratio",
             "progress", "total_wanted", "state", "tracker_host", "eta", "total_size",
             "all_time_download", "total_uploaded", "time_added", "paused"
         ]
         if includeLabel { keys.append("label") }
+        if includeQueue { keys.append("queue") }
         return keys
     }
 
-    private static func detailKeys(includeLabel: Bool) -> [String] {
-        overviewKeys(includeLabel: includeLabel) + [
+    private static func detailKeys(includeLabel: Bool, includeQueue: Bool) -> [String] {
+        overviewKeys(includeLabel: includeLabel, includeQueue: includeQueue) + [
             "save_path", "comment", "tracker_status", "message", "tracker",
             "num_seeds", "num_peers", "total_done", "files", "file_progress",
             "file_priorities", "max_download_speed", "max_upload_speed", "max_connections"

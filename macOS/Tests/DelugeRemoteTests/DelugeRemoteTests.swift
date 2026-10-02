@@ -63,6 +63,8 @@ import Testing
     #expect(abs(detail.files[0].progress - 25) < 0.01)
     #expect(detail.files[0].priority == 1)
     #expect(detail.maxDownloadSpeed == -1)
+    #expect(torrent.queue == 2)
+    #expect(torrent.queueOrder == 2)
 }
 
 @Test func pausedFilter() throws {
@@ -74,6 +76,8 @@ import Testing
     #expect(TorrentFilter.paused.matches(paused))
     #expect(!TorrentFilter.downloading.matches(paused))
     #expect(TorrentFilter.label("tv").matches(paused))
+    #expect(paused.queue == -1)
+    #expect(paused.queueOrder == Int.max)
 
     let errorJSON = try JSONDecoder().decode(
         JSONValue.self,
@@ -143,6 +147,7 @@ private let torrentFixture = """
       "tracker_host": "tracker.example",
       "label": "linux",
       "time_added": 1700000000,
+      "queue": 2,
       "all_time_download": 100,
       "total_uploaded": 5,
       "save_path": "/downloads",

@@ -51,6 +51,19 @@ struct TorrentCommands: Commands {
             Divider()
             Button("Force Recheck") { Task { await model.recheckSelected() } }
                 .disabled(model.selectedHashes.isEmpty)
+            Divider()
+            Button("Move to Top") { Task { await model.moveSelectedInQueue(.top) } }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option, .shift])
+                .disabled(model.selectedHashes.isEmpty)
+            Button("Move Up") { Task { await model.moveSelectedInQueue(.up) } }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                .disabled(model.selectedHashes.isEmpty)
+            Button("Move Down") { Task { await model.moveSelectedInQueue(.down) } }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                .disabled(model.selectedHashes.isEmpty)
+            Button("Move to Bottom") { Task { await model.moveSelectedInQueue(.bottom) } }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option, .shift])
+                .disabled(model.selectedHashes.isEmpty)
             Button("Remove…") { model.isPresentingRemove = true }
                 .keyboardShortcut(.delete, modifiers: [.command])
                 .disabled(model.selectedHashes.isEmpty)

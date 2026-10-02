@@ -3,8 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "DelugeRemote",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
+        .library(name: "DelugeRemoteCore", targets: ["DelugeRemoteCore"]),
         .executable(name: "DelugeRemote", targets: ["DelugeRemote"])
     ],
     targets: [

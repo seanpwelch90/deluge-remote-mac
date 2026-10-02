@@ -6,7 +6,7 @@ struct TorrentListView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("DelugeRemote.torrentColumns") private var columnCustomization = TableColumnCustomization<Torrent>()
     @State private var query = ""
-    @State private var sortOrder = [KeyPathComparator(\Torrent.timeAdded, order: .reverse)]
+    @State private var sortOrder = [KeyPathComparator(\Torrent.queueOrder)]
 
     var body: some View {
         @Bindable var model = model
@@ -87,6 +87,18 @@ struct TorrentListView: View {
                 }
                 .disabled(model.selectedHashes.isEmpty)
 
+                Menu {
+                    ForEach(QueueMove.allCases) { move in
+                        Button(move.title, systemImage: move.symbol) {
+                            Task { await model.moveSelectedInQueue(move) }
+                        }
+                    }
+                } label: {
+                    Label("Queue", systemImage: "list.number")
+                }
+                .disabled(model.selectedHashes.isEmpty)
+                .help("Change Deluge’s download queue order")
+
                 Button {
                     model.isPresentingRemove = true
                 } label: {
@@ -144,6 +156,14 @@ struct TorrentListView: View {
         @Bindable var model = model
         let rows = visibleTorrents
         return Table(rows, selection: $model.selectedHashes, sortOrder: $sortOrder, columnCustomization: $columnCustomization) {
+            TableColumn("Queue", value: \.queueOrder) { torrent in
+                Text(queueLabel(torrent.queue))
+                    .monospacedDigit()
+                    .foregroundStyle(torrent.queue >= 0 ? .primary : .secondary)
+            }
+            .width(min: 56, ideal: 68)
+            .customizationID(TorrentTableColumn.queue.id)
+
             TableColumn("Name", value: \.name) { torrent in
                 HStack(spacing: 8) {
                     Image(systemName: stateSymbol(torrent))
@@ -235,6 +255,13 @@ struct TorrentListView: View {
                 Task { await model.recheckSelected() }
             }
             Divider()
+            ForEach(QueueMove.allCases) { move in
+                Button(move.title, systemImage: move.symbol) {
+                    model.selectedHashes = ids
+                    Task { await model.moveSelectedInQueue(move) }
+                }
+            }
+            Divider()
             Button("Copy Hash") { copy(ids.sorted().joined(separator: "\n")) }
             Divider()
             Button("Remove…", role: .destructive) {
@@ -309,6 +336,7 @@ struct TorrentListView: View {
 }
 
 enum TorrentTableColumn: String, CaseIterable, Identifiable {
+    case queue
     case name
     case progress
     case size
@@ -322,6 +350,7 @@ enum TorrentTableColumn: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .queue: return "Queue"
         case .name: return "Name"
         case .progress: return "Progress"
         case .size: return "Size"
@@ -334,6 +363,10 @@ enum TorrentTableColumn: String, CaseIterable, Identifiable {
     }
 
     var canHide: Bool { self != .name }
+}
+
+func queueLabel(_ queue: Int) -> String {
+    queue >= 0 ? String(queue + 1) : "—"
 }
 
 func stateSymbol(_ torrent: Torrent) -> String {

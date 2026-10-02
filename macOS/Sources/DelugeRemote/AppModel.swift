@@ -136,8 +136,16 @@ final class AppModel {
         Task { await refresh(token: token) }
     }
 
+    func reload() async {
+        await refresh(token: generation)
+    }
+
     func pauseSelected() async {
-        await runAction { api, hashes in
+        await pause(Array(selectedHashes))
+    }
+
+    func pause(_ hashes: [String]) async {
+        await runAction(on: hashes) { api, hashes in
             if hashes.count == torrents.count {
                 try await api.pauseAll()
             } else {
@@ -147,7 +155,11 @@ final class AppModel {
     }
 
     func resumeSelected() async {
-        await runAction { api, hashes in
+        await resume(Array(selectedHashes))
+    }
+
+    func resume(_ hashes: [String]) async {
+        await runAction(on: hashes) { api, hashes in
             if hashes.count == torrents.count {
                 try await api.resumeAll()
             } else {
@@ -165,19 +177,52 @@ final class AppModel {
     }
 
     func removeSelected(deleteData: Bool) async {
-        let hashes = Array(selectedHashes)
+        await remove(Array(selectedHashes), deleteData: deleteData)
+    }
+
+    func remove(_ hashes: [String], deleteData: Bool) async {
         await runBulk { api in
             for hash in hashes {
                 try await api.remove(hash: hash, deleteData: deleteData)
             }
         }
-        selectedHashes = []
+        selectedHashes.subtract(hashes)
     }
 
     func recheckSelected() async {
-        await runAction { api, hashes in
+        await recheck(Array(selectedHashes))
+    }
+
+    func recheck(_ hashes: [String]) async {
+        await runAction(on: hashes) { api, hashes in
             for hash in hashes {
                 try await api.recheck(hash: hash)
+            }
+        }
+    }
+
+    func moveSelectedInQueue(_ move: QueueMove) async {
+        await moveInQueue(move, hashes: Array(selectedHashes))
+    }
+
+    func moveInQueue(_ move: QueueMove, hashes: [String]) async {
+        let wanted = Set(hashes)
+        let selected = torrents.filter { wanted.contains($0.hash) }
+        guard !selected.isEmpty else { return }
+        guard selected.contains(where: { $0.queue >= 0 }) else {
+            banner = "These torrents have no queue position. Enable Queue in Deluge’s preferences, then try again."
+            return
+        }
+        // Older daemons move hashes in the order given. Top and down walk from the bottom so a multi-selection keeps its relative order.
+        let ordered = selected
+            .sorted { move.processesFromBottom ? $0.queue > $1.queue : $0.queue < $1.queue }
+            .map(\.hash)
+        await runBulk { api in
+            switch move {
+            case .top: try await api.queueTop(hashes: ordered)
+            case .up: try await api.queueUp(hashes: ordered)
+            case .down: try await api.queueDown(hashes: ordered)
+            case .bottom: try await api.queueBottom(hashes: ordered)
             }
         }
     }
@@ -384,8 +429,7 @@ final class AppModel {
         }
     }
 
-    private func runAction(_ body: (DelugeClient, [String]) async throws -> Void) async {
-        let hashes = Array(selectedHashes)
+    private func runAction(on hashes: [String], _ body: (DelugeClient, [String]) async throws -> Void) async {
         guard let api, !hashes.isEmpty else { return }
         do {
             try await body(api, hashes)
@@ -464,6 +508,40 @@ final class AppModel {
             banner = failures[0]
         } else {
             banner = "\(failures.count) torrents couldn’t be added. \(failures[0])"
+        }
+    }
+}
+
+enum QueueMove: CaseIterable, Identifiable {
+    case top
+    case up
+    case down
+    case bottom
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .top: return "Move to Top"
+        case .up: return "Move Up"
+        case .down: return "Move Down"
+        case .bottom: return "Move to Bottom"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .top: return "arrow.up.to.line"
+        case .up: return "arrow.up"
+        case .down: return "arrow.down"
+        case .bottom: return "arrow.down.to.line"
+        }
+    }
+
+    var processesFromBottom: Bool {
+        switch self {
+        case .top, .down: return true
+        case .up, .bottom: return false
         }
     }
 }

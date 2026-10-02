@@ -50,12 +50,18 @@ public struct Torrent: Identifiable, Hashable, Sendable {
     public var trackerHost: String
     public var label: String
     public var timeAdded: Date
+    public var queue: Int
 
     public var displayState: String {
         if paused && state != "Error" && state != "Paused" {
             return "Paused"
         }
         return state.isEmpty ? "Unknown" : state
+    }
+
+    /// Sort key for Deluge’s download queue. Unqueued torrents follow queued ones.
+    public var queueOrder: Int {
+        queue >= 0 ? queue : Int.max
     }
 
     public static func list(from result: JSONValue) -> [Torrent] {
@@ -84,6 +90,7 @@ public struct Torrent: Identifiable, Hashable, Sendable {
         self.trackerHost = Self.trackerHost(from: json)
         self.label = json["label"]?.string ?? ""
         self.timeAdded = Date(timeIntervalSince1970: json["time_added"]?.double ?? 0)
+        self.queue = json["queue"]?.int ?? -1
     }
 
     static func trackerHost(from json: JSONValue) -> String {

@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:Deluge-Remote}/macOS",
+      "name": "Debug DelugeRemote (macOS)",
+      "target": "DelugeRemote",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug DelugeRemote (macOS)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:Deluge-Remote}/macOS",
+      "name": "Release DelugeRemote (macOS)",
+      "target": "DelugeRemote",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release DelugeRemote (macOS)"
+    }
+  ]
+}
