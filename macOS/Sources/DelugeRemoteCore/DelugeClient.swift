@@ -119,7 +119,8 @@ public final class DelugeClient: @unchecked Sendable {
             "max_download_speed_per_torrent",
             "max_upload_slots_per_torrent",
             "max_upload_speed_per_torrent",
-            "prioritize_first_last_pieces"
+            "prioritize_first_last_pieces",
+            "compact_allocation"
         ]
         let result = try await rpc("core.get_config_values", [.array(keys.map(JSONValue.string))])
         return AddTorrentOptions.parse(result)
@@ -189,6 +190,27 @@ public final class DelugeClient: @unchecked Sendable {
         ])
     }
 
+    public func previewMagnet(_ magnet: String) async throws -> TorrentPreview {
+        let result = try await rpc("web.get_magnet_info", [.string(magnet)])
+        guard let preview = TorrentPreview.magnet(from: result) else {
+            throw DelugeClientError.unreadableResponse
+        }
+        return preview
+    }
+
+    public func previewURL(_ url: String) async throws -> TorrentPreview {
+        let downloaded = try await rpc("web.download_torrent_from_url", [.string(url), .array([])])
+        guard let filename = downloaded.string, !filename.isEmpty else {
+            throw DelugeClientError.unreadableResponse
+        }
+        return try await previewUploadedFile(filename)
+    }
+
+    public func previewFile(name: String, data: Data) async throws -> TorrentPreview {
+        let filename = try await upload(name: name, data: data)
+        return try await previewUploadedFile(filename)
+    }
+
     public func addMagnet(_ magnet: String, options: AddTorrentOptions) async throws {
         _ = try await rpc("core.add_torrent_magnet", [.string(magnet), options.parameters()])
     }
@@ -247,6 +269,60 @@ public final class DelugeClient: @unchecked Sendable {
             await mutex.release()
             throw error
         }
+    }
+
+    private func previewUploadedFile(_ filename: String) async throws -> TorrentPreview {
+        let result = try await rpc("web.get_torrent_info", [.string(filename)])
+        guard let preview = TorrentPreview.torrentInfo(from: result) else {
+            throw DelugeClientError.unreadableResponse
+        }
+        return preview
+    }
+
+    private func upload(name: String, data: Data) async throws -> String {
+        guard let url = server.endpoint("upload") else { throw DelugeClientError.invalidURL }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let safeName = name
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+        var body = Data()
+        body.append(contentsOf: Data("--\(boundary)\r\n".utf8))
+        body.append(contentsOf: Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\n".utf8))
+        body.append(contentsOf: Data("Content-Type: application/x-bittorrent\r\n\r\n".utf8))
+        body.append(data)
+        body.append(contentsOf: Data("\r\n--\(boundary)--\r\n".utf8))
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        let responseData: Data
+        let response: URLResponse
+        do {
+            (responseData, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw DelugeClientError.transport(error.localizedDescription)
+        }
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw DelugeClientError.http(http.statusCode)
+        }
+        let value: JSONValue
+        do {
+            value = try JSONDecoder().decode(JSONValue.self, from: responseData)
+        } catch {
+            throw DelugeClientError.unreadableResponse
+        }
+        if value["success"]?.bool == false {
+            throw DelugeClientError.api("Deluge couldn’t read that torrent file.")
+        }
+        guard let filename = TorrentPreview.uploadedFilename(from: value) else {
+            throw DelugeClientError.unreadableResponse
+        }
+        return filename
     }
 
     private func send(_ method: String, _ params: [JSONValue]) async throws -> JSONValue {

@@ -92,6 +92,24 @@ import Testing
     let object = try JSONDecoder().decode(JSONValue.self, from: data)
     #expect(object["add_paused"]?.bool == false)
     #expect(object["max_download_speed"]?.int == -1)
+    #expect(object["compact_allocation"]?.bool == false)
+    #expect(object["prioritize_first_last_pieces"]?.bool == false)
+    #expect(object["move_completed"]?.bool == false)
+}
+
+@Test func torrentPreviewParsing() throws {
+    let magnet = try JSONDecoder().decode(
+        JSONValue.self,
+        from: Data(#"{"name":"Ubuntu","info_hash":"abc"}"#.utf8)
+    )
+    #expect(TorrentPreview.magnet(from: magnet)?.name == "Ubuntu")
+    #expect(TorrentPreview.magnet(from: magnet)?.hash == "abc")
+
+    let upload = try JSONDecoder().decode(
+        JSONValue.self,
+        from: Data(#"{"success":true,"files":["tmp.torrent"]}"#.utf8)
+    )
+    #expect(TorrentPreview.uploadedFilename(from: upload) == "tmp.torrent")
 }
 
 @Test func serverDirectoryRoundTrip() throws {

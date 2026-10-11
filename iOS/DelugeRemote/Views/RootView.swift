@@ -32,8 +32,13 @@ struct RootView: View {
             ClientEditorView(existingID: model.serverEditorID)
                 .environment(model)
         }
-        .sheet(isPresented: $model.isPresentingAddTorrent) {
+        .sheet(isPresented: $model.isPresentingAddTorrent, onDismiss: {
+            if !model.stagedAdds.isEmpty {
+                model.cancelAdd()
+            }
+        }) {
             AddTorrentView()
+                .id(model.addSession)
                 .environment(model)
         }
         .sheet(isPresented: $isPresentingSettings) {

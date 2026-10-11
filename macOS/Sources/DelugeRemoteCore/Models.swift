@@ -254,6 +254,7 @@ public struct AddTorrentOptions: Equatable, Sendable {
     public var maxConnections: Int
     public var maxUploadSlots: Int
     public var prioritizeFirstLastPieces: Bool
+    public var compactAllocation: Bool
 
     public static let fallback = AddTorrentOptions(
         addPaused: false,
@@ -264,7 +265,8 @@ public struct AddTorrentOptions: Equatable, Sendable {
         maxUploadSpeed: -1,
         maxConnections: -1,
         maxUploadSlots: -1,
-        prioritizeFirstLastPieces: false
+        prioritizeFirstLastPieces: false,
+        compactAllocation: false
     )
 
     public static func parse(_ value: JSONValue) -> AddTorrentOptions {
@@ -277,7 +279,8 @@ public struct AddTorrentOptions: Equatable, Sendable {
             maxUploadSpeed: value["max_upload_speed_per_torrent"]?.int ?? -1,
             maxConnections: value["max_connections_per_torrent"]?.int ?? -1,
             maxUploadSlots: value["max_upload_slots_per_torrent"]?.int ?? -1,
-            prioritizeFirstLastPieces: value["prioritize_first_last_pieces"]?.bool ?? false
+            prioritizeFirstLastPieces: value["prioritize_first_last_pieces"]?.bool ?? false,
+            compactAllocation: value["compact_allocation"]?.bool ?? false
         )
     }
 
@@ -285,6 +288,7 @@ public struct AddTorrentOptions: Equatable, Sendable {
         .object([
             "file_priorities": .array([]),
             "add_paused": .bool(addPaused),
+            "compact_allocation": .bool(compactAllocation),
             "move_completed": .bool(moveCompleted),
             "download_location": .string(downloadLocation),
             "move_completed_path": .string(moveCompletedPath),
@@ -294,5 +298,26 @@ public struct AddTorrentOptions: Equatable, Sendable {
             "max_upload_speed": .int(maxUploadSpeed),
             "prioritize_first_last_pieces": .bool(prioritizeFirstLastPieces)
         ])
+    }
+}
+
+public struct TorrentPreview: Equatable, Sendable {
+    public var name: String
+    public var hash: String
+
+    public static func magnet(from value: JSONValue) -> TorrentPreview? {
+        guard let hash = value["info_hash"]?.string, !hash.isEmpty else { return nil }
+        let name = value["name"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return TorrentPreview(name: name.isEmpty ? "Unknown torrent" : name, hash: hash)
+    }
+
+    public static func torrentInfo(from value: JSONValue) -> TorrentPreview? {
+        magnet(from: value)
+    }
+
+    public static func uploadedFilename(from value: JSONValue) -> String? {
+        guard case .array(let files) = value["files"] else { return nil }
+        guard let name = files.first?.string, !name.isEmpty else { return nil }
+        return name
     }
 }

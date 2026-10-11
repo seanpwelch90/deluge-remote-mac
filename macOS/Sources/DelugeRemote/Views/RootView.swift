@@ -17,8 +17,13 @@ struct RootView: View {
         .sheet(isPresented: $model.isPresentingServerEditor) {
             ClientEditorView(existingID: model.serverEditorID)
         }
-        .sheet(isPresented: $model.isPresentingAddTorrent) {
+        .sheet(isPresented: $model.isPresentingAddTorrent, onDismiss: {
+            if !model.stagedAdds.isEmpty {
+                model.cancelAdd()
+            }
+        }) {
             AddTorrentView()
+                .id(model.addSession)
         }
         .confirmationDialog(removeTitle, isPresented: $model.isPresentingRemove, titleVisibility: .visible) {
             Button("Remove Torrent", role: .destructive) {

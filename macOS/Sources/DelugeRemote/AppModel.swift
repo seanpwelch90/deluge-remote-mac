@@ -23,6 +23,8 @@ final class AppModel {
     var isPresentingServerEditor = false
     var serverEditorID: UUID?
     var isPresentingAddTorrent = false
+    var stagedAdds: [TorrentPayload] = []
+    var addSession = 0
     var isPresentingRemove = false
 
     private var directory: ClientDirectory
@@ -93,7 +95,24 @@ final class AppModel {
 
     func presentAddTorrent() {
         guard status == .connected else { return }
+        addSession += 1
         isPresentingAddTorrent = true
+    }
+
+    func cancelAdd() {
+        stagedAdds = []
+        isPresentingAddTorrent = false
+    }
+
+    func completeAdd() {
+        if !stagedAdds.isEmpty {
+            stagedAdds.removeFirst()
+        }
+        if stagedAdds.isEmpty {
+            isPresentingAddTorrent = false
+        } else {
+            addSession += 1
+        }
     }
 
     func saveServer(_ server: ServerConfig, password: String) {
@@ -272,6 +291,21 @@ final class AppModel {
         return (try? await api.defaultOptions()) ?? .fallback
     }
 
+    func previewMagnet(_ magnet: String) async throws -> TorrentPreview {
+        guard let api else { throw DelugeClientError.transport("Not connected.") }
+        return try await api.previewMagnet(magnet)
+    }
+
+    func previewURL(_ url: String) async throws -> TorrentPreview {
+        guard let api else { throw DelugeClientError.transport("Not connected.") }
+        return try await api.previewURL(url)
+    }
+
+    func previewFile(name: String, data: Data) async throws -> TorrentPreview {
+        guard let api else { throw DelugeClientError.transport("Not connected.") }
+        return try await api.previewFile(name: name, data: data)
+    }
+
     func receive(_ url: URL) async {
         if url.isFileURL {
             let accessing = url.startAccessingSecurityScopedResource()
@@ -299,11 +333,17 @@ final class AppModel {
             return
         }
         if status == .connected, api != nil {
-            await performImports(items)
+            stage(items)
         } else {
             pendingImports.append(contentsOf: items)
             banner = waitingToAddMessage
         }
+    }
+
+    private func stage(_ items: [TorrentPayload]) {
+        stagedAdds.append(contentsOf: items)
+        banner = nil
+        isPresentingAddTorrent = true
     }
 
     private func beginConnect() {
@@ -463,9 +503,9 @@ final class AppModel {
     private var waitingToAddMessage: String {
         switch status {
         case .empty:
-            return "Add a server. The torrent will be added after it connects."
+            return "Add a server. You can confirm the torrent after it connects."
         case .connecting:
-            return "The torrent will be added when the server connects."
+            return "You can confirm the torrent when the server connects."
         case .connected, .failed:
             return "Connect to a server to add this torrent."
         }
@@ -475,40 +515,7 @@ final class AppModel {
         let items = pendingImports
         pendingImports.removeAll()
         guard !items.isEmpty, token == generation else { return }
-        await performImports(items)
-    }
-
-    private func performImports(_ items: [TorrentPayload]) async {
-        guard let api else {
-            pendingImports.append(contentsOf: items)
-            banner = waitingToAddMessage
-            return
-        }
-        let options = await loadDefaultOptions()
-        guard !Task.isCancelled else { return }
-        var failures: [String] = []
-        for item in items {
-            do {
-                switch item {
-                case .magnet(let magnet):
-                    try await api.addMagnet(magnet, options: options)
-                case .file(let name, let data):
-                    try await api.addFile(name: name, data: data, options: options)
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                failures.append(errorText(error))
-            }
-        }
-        await refresh(token: generation)
-        if failures.isEmpty {
-            banner = nil
-        } else if failures.count == 1 {
-            banner = failures[0]
-        } else {
-            banner = "\(failures.count) torrents couldn’t be added. \(failures[0])"
-        }
+        stage(items)
     }
 }
 
