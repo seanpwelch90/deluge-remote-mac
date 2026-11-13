@@ -11,19 +11,21 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var pick: SidebarPick?
     @State private var openedHash: String?
-    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
+    @State private var compactColumn = NavigationSplitViewColumn.sidebar
     @State private var isDropTargeted = false
     @State private var isPresentingSettings = false
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $compactColumn) {
             SidebarView(pick: $pick, showList: showList) {
                 isPresentingSettings = true
             }
-                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         } content: {
             TorrentListView(openedHash: $openedHash)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
         } detail: {
             TorrentDetailView()
         }
@@ -62,11 +64,19 @@ struct RootView: View {
         }
         .onChange(of: openedHash) { _, hash in
             model.selectedHashes = hash.map { [$0] } ?? []
+            if horizontalSizeClass == .regular {
+                compactColumn = hash == nil ? .content : .detail
+            }
+        }
+        .onChange(of: pick) { _, selection in
+            if case .filter(let filter) = selection {
+                model.filter = filter
+                showList()
+            }
         }
         .onChange(of: model.status) { _, status in
-            guard status == .connected else { return }
-            if pick == nil { pick = .filter(model.filter) }
-            showList()
+            guard status == .connected, pick == nil else { return }
+            pick = .filter(model.filter)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, model.status == .connected {
@@ -97,9 +107,7 @@ struct RootView: View {
     }
 
     private func showList() {
-        if horizontalSizeClass == .compact {
-            columnVisibility = .doubleColumn
-        }
+        compactColumn = .content
     }
 
     private var removeTitle: String {
@@ -164,15 +172,17 @@ struct SidebarView: View {
             if model.status == .connected {
                 Section("Show") {
                     ForEach(libraryFilters, id: \.self) { filter in
-                        filterRow(filter)
-                            .tag(SidebarPick.filter(filter))
+                        NavigationLink(value: SidebarPick.filter(filter)) {
+                            filterRow(filter)
+                        }
                     }
                 }
                 if !model.labels.isEmpty {
                     Section("Labels") {
                         ForEach(model.labels, id: \.self) { label in
-                            filterRow(.label(label), title: label, symbol: "tag")
-                                .tag(SidebarPick.filter(.label(label)))
+                            NavigationLink(value: SidebarPick.filter(.label(label))) {
+                                filterRow(.label(label), title: label, symbol: "tag")
+                            }
                         }
                     }
                 }
@@ -193,12 +203,6 @@ struct SidebarView: View {
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
-            }
-        }
-        .onChange(of: pick) { _, newValue in
-            if case .filter(let filter) = newValue {
-                model.filter = filter
-                showList()
             }
         }
         .confirmationDialog(

@@ -386,9 +386,8 @@ final class AppModel {
             }
             api = client
             status = .connected
+            flushPendingImports()
             await refresh(token: token)
-            guard token == generation else { return }
-            await flushPendingImports(token: token)
             guard token == generation else { return }
             startPolling(token: token)
         } catch is CancellationError {
@@ -422,6 +421,7 @@ final class AppModel {
             session = snapshot
             banner = nil
             status = .connected
+            flushPendingImports()
             authRetries = 0
             if case .label(let name) = filter, !labels.contains(name) {
                 filter = .all
@@ -511,10 +511,10 @@ final class AppModel {
         }
     }
 
-    private func flushPendingImports(token: Int) async {
+    private func flushPendingImports() {
+        guard !pendingImports.isEmpty else { return }
         let items = pendingImports
         pendingImports.removeAll()
-        guard !items.isEmpty, token == generation else { return }
         stage(items)
     }
 }

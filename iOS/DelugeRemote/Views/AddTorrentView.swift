@@ -168,11 +168,17 @@ struct AddTorrentView: View {
     }
 
     private func loadDefaults() async {
-        options = await model.loadDefaultOptions()
-        if let payload = model.stagedAdds.first {
-            apply(payload)
-            await previewCurrent()
+        let initialPayload = model.stagedAdds.first
+        if let initialPayload {
+            apply(initialPayload)
+            isWorking = true
         }
+        options = await model.loadDefaultOptions()
+        guard !Task.isCancelled, let payload = model.stagedAdds.first else { return }
+        if initialPayload == nil {
+            apply(payload)
+        }
+        await previewCurrent()
     }
 
     private func apply(_ payload: TorrentPayload) {

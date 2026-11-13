@@ -52,6 +52,15 @@ There are two main methods for installing this app to your iOS device.
 - [Follow this video](https://twitter.com/altstoreio/status/1248728994909839360?s=21) to Sideload Deluge Remote 
 
 ## Screenshots
+
+The iOS app uses a single-column torrent list at compact widths and shows the list and details side by side at wider widths. These previews use iPhone 17 and iPad mini simulators with sample data to illustrate the iPhone Duo layouts.
+
+| Closed layout | Open layout |
+| --- | --- |
+| <img src="docs/screenshots/ios-compact.png" width="240" alt="Compact torrent list with progress bars, transfer rates, and search"> | <img src="docs/screenshots/ios-expanded.png" width="342" alt="Expanded torrent list beside the detail pane"> |
+
+### Original screenshot
+
 <img src="https://i.imgur.com/tfUzmFi.jpg">
 
 ## Credits

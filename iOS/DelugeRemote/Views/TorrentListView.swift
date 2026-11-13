@@ -114,8 +114,9 @@ struct TorrentListView: View {
                 .environment(\.editMode, .constant(.active))
             } else {
                 List(rows, selection: $openedHash) { torrent in
-                    row(torrent)
-                        .tag(torrent.id)
+                    NavigationLink(value: torrent.id) {
+                        row(torrent)
+                    }
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button(torrent.paused || torrent.state == "Paused" ? "Resume" : "Pause") {
                                 let hash = torrent.hash
@@ -206,21 +207,35 @@ struct TorrentListView: View {
     }
 
     private var statusBar: some View {
-        HStack(spacing: 12) {
-            Text(summary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if let session = model.session {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                Text(summary)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 8)
+                transferRates
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(summary)
+                transferRates
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.caption.monospacedDigit())
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    @ViewBuilder
+    private var transferRates: some View {
+        if let session = model.session {
+            HStack(spacing: 12) {
                 Label(session.downloadRate.byteRateString, systemImage: "arrow.down")
                     .foregroundStyle(.blue)
                 Label(session.uploadRate.byteRateString, systemImage: "arrow.up")
                     .foregroundStyle(.green)
             }
         }
-        .font(.caption.monospacedDigit())
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 
     private func row(_ torrent: Torrent) -> some View {
@@ -233,15 +248,16 @@ struct TorrentListView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: stateSymbol(torrent))
                         .foregroundStyle(stateColor(torrent))
-                    Text(torrent.name)
-                        .font(.body.weight(.medium))
-                        .lineLimit(2)
-                    if !torrent.label.isEmpty {
-                        Text(torrent.label)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
+                    let name = Text(torrent.name).font(.body.weight(.medium))
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            name.fixedSize(horizontal: true, vertical: false)
+                            labelBadge(torrent.label)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            name.lineLimit(2)
+                            labelBadge(torrent.label)
+                        }
                     }
                 }
                 ProgressView(value: min(max(torrent.progress, 0), 100), total: 100)
@@ -258,6 +274,18 @@ struct TorrentListView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func labelBadge(_ label: String) -> some View {
+        if !label.isEmpty {
+            Text(label)
+                .font(.caption2)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary, in: Capsule())
+        }
     }
 
     private var visibleTorrents: [Torrent] {
